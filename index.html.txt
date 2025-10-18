@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <title>🎉 Mutlu Yıllar!</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            background: linear-gradient(135deg, #7F00FF, #00B4FF);
+            overflow: hidden;
+            font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        .container {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            pointer-events: auto;
+        }
+        h1 {
+            font-size: clamp(32px, 6vw, 64px);
+            text-shadow: 0 0 15px rgba(0,0,0,0.5);
+            animation: pulse 1.2s infinite alternate;
+            margin: 0;
+        }
+        @keyframes pulse {
+            from { transform: scale(0.95); text-shadow: 0 0 10px rgba(255,255,255,0.5); }
+            to   { transform: scale(1.1); text-shadow: 0 0 25px rgba(255,255,255,0.9); }
+        }
+        p {
+            font-size: clamp(16px, 2.5vw, 24px);
+            margin-top: 12px;
+            animation: colorShift 3s infinite alternate;
+        }
+        @keyframes colorShift {
+            0% { color: #ffffff; }
+            50% { color: #ffeb7b; }
+            100% { color: #ff9ef5; }
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 18px;
+            font-size: 18px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.18);
+            color: white;
+            cursor: pointer;
+            transition: background 0.25s;
+        }
+        button:hover { background: rgba(255,255,255,0.35); }
+        /* canvas arka planda, tüm ekranı kaplar */
+        canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            pointer-events: none; /* butonların tıklanmasını engellemesin */
+        }
+    </style>
+</head>
+<body>
+    <canvas id="confetti"></canvas>
+
+    <div class="container">
+        <h1>🎉 Doğum Günün Kutlu Olsun Songüül!</h1>
+        <p id="subtitle">Nice mutlu, sağlıklı ve neşeli senelere 💖</p>
+        <button id="replayBtn">Tekrar Oynat</button>
+    </div>
+
+    <script>
+    (function () {
+        // DOM hazır olana kadar bekle
+        document.addEventListener('DOMContentLoaded', init);
+
+        function init() {
+            try {
+                const canvas = document.getElementById('confetti');
+                if (!canvas) throw new Error('Canvas elementi bulunamadı (id="confetti").');
+
+                const ctx = canvas.getContext && canvas.getContext('2d');
+                if (!ctx) throw new Error('2D context alınamadı. Tarayıcınız canvas 2D desteği vermiyor olabilir.');
+
+                // HiDPI / Retina desteği için ölçekleme
+                let DPR = window.devicePixelRatio || 1;
+                function resizeCanvas() {
+                    const W = Math.max(window.innerWidth, 300);
+                    const H = Math.max(window.innerHeight, 300);
+                    canvas.style.width = W + 'px';
+                    canvas.style.height = H + 'px';
+                    canvas.width = Math.round(W * DPR);
+                    canvas.height = Math.round(H * DPR);
+                    ctx.setTransform(DPR, 0, 0, DPR, 0, 0); // ölçekle
+                }
+                resizeCanvas();
+                window.addEventListener('resize', () => {
+                    resizeCanvas();
+                    // yeniden başlatma tercih edilebilir, burada sadece boyutu düzeltir
+                });
+
+                // Konfeti listesi ve sınıf
+                let confettis = [];
+
+                class Confetti {
+                    constructor(w, h) {
+                        this.canvasWidth = w;
+                        this.canvasHeight = h;
+                        this.reset(true);
+                    }
+                    reset(init = false) {
+                        this.size = Math.random() * 10 + 6;
+                        this.x = Math.random() * this.canvasWidth;
+                        // Başlangıç konumu: ilk oluşturuluyorsa -canvasHeight..0 arası, replay'de biraz daha üstten
+                        this.y = init ? (Math.random() * -this.canvasHeight) : (Math.random() * -100 - this.size);
+                        this.color = `hsl(${Math.floor(Math.random() * 360)}, 80%, ${50 + Math.random()*20}%)`;
+                        this.speed = Math.random() * 2 + 1;
+                        this.rotation = Math.random() * 360;
+                        this.rotationSpeed = Math.random() * 6 - 3;
+                        this.sway = Math.random() * 40; // yatay hareket genliği
+                        this.swaySpeed = Math.random() * 0.02 + 0.01;
+                        this.alpha = 1;
+                        this.life = Math.random() * 1 + 0.8;
+                        this.t = Math.random() * 1000;
+                    }
+                    update(dt) {
+                        this.t += dt;
+                        this.y += this.speed;
+                        // yatay sallanma
+                        this.x += Math.sin(this.t * this.swaySpeed) * 0.6;
+                        this.rotation += this.rotationSpeed;
+                        if (this.y > this.canvasHeight + this.size) {
+                            this.reset(false);
+                        }
+                    }
+                    draw(ctx) {
+                        ctx.save();
+                        ctx.translate(this.x, this.y);
+                        ctx.rotate(this.rotation * Math.PI / 180);
+                        ctx.globalAlpha = this.alpha;
+                        ctx.fillStyle = this.color;
+                        // küçük dikdörtgen şeklinde konfeti
+                        ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+                        ctx.restore();
+                    }
+                }
+
+                function startConfetti(count = 80) {
+                    confettis = [];
+                    const W = canvas.clientWidth;
+                    const H = canvas.clientHeight;
+                    for (let i = 0; i < count; i++) {
+                        confettis.push(new Confetti(W, H));
+                    }
+                    console.log('Konfeti başlatıldı, adet:', confettis.length);
+                }
+
+                // Animasyon döngüsü (zaman farkı ile)
+                let last = performance.now();
+                function frame(now) {
+                    const dt = (now - last) / 1000; // saniye cinsinden
+                    last = now;
+
+                    // temizle
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    // gerçek pixel boyut yerine css px ile işlem yapıyoruz (çünkü setTransform ile DPR uygulandı)
+                    const W = canvas.clientWidth;
+                    const H = canvas.clientHeight;
+
+                    for (let c of confettis) {
+                        c.canvasWidth = W;
+                        c.canvasHeight = H;
+                        c.update(dt);
+                        c.draw(ctx);
+                    }
+
+                    requestAnimationFrame(frame);
+                }
+
+                // Butona bağla
+                const btn = document.getElementById('replayBtn');
+                btn.addEventListener('click', () => {
+                    startConfetti(80);
+                });
+
+                // Başlangıç
+                startConfetti(80);
+                requestAnimationFrame(frame);
+
+            } catch (err) {
+                // Hata oluşursa konsola detay yaz ve kullanıcıya göster
+                console.error('Başlatma hatası:', err);
+                alert('Kod başlatılırken hata oluştu: ' + (err && err.message ? err.message : err));
+            }
+        }
+    })();
+    </script>
+</body>
+</html>
